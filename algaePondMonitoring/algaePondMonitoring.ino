@@ -17,7 +17,6 @@
 //#include <SD.h>
 #include <SPI.h>
 #include <LiquidCrystal_I2C.h>
-#include <ArduinoJson.h>
 
 // Define port sensor dan relay
 #define BUZZ 13   //active high
