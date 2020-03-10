@@ -267,6 +267,7 @@ void sendDataSensor() {
   String S2 = "";
   String S3 = "";
 
+  // serial komunikasi arduino dengan esp32
   while (Serial.available() > 0) {
     char c = Serial.read();
     if(c!=13 && c!=10) S1 += String(c);
@@ -279,7 +280,7 @@ void sendDataSensor() {
     char c = Serial2.read();
     if(c!=13 && c!=10) S3 += String(c);
     }
-  String message = "test";
+  String message = "";
   // data ilham
   stringToArray(inputText,' ',S1);
   if(inputText[0]=="ph")  Ph = inputText[1];
@@ -304,6 +305,7 @@ void sendDataSensor() {
   // Serial2.println("23:59");
   String formattedDate = String(timeClient.getFullFormattedTime());
   message += Ph + "," + mpx + "," + water_flow + "," + lux + "," + pzem + "," + suhu_air + "," + turbidity + "," + water_lv + "," + formattedDate;
+  // publish data ke broker AWS
   if (!client.publish(MQTT_PUB_TOPIC, message.c_str(), false)) //contoh data yg terkirim (100, 2019-10-30 00:00:00)
     pubSubErr(client.state());
 
