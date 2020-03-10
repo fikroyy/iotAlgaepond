@@ -47,8 +47,8 @@ char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursd
 const long utcOffsetInSeconds = 25200; //WIB +07.00
 const int MQTT_PORT = 8883;
 // AWS IoT Core Topic
-const char MQTT_SUB_TOPIC[] = "paddlewheel";//"$aws/things/" THINGNAME "/shadow/update";
-const char MQTT_PUB_TOPIC[] = "paddlewheel";//"$aws/things/" THINGNAME "/shadow/update";
+const char MQTT_SUB_TOPIC[] = "algaepond/monitoring";//"$aws/things/" THINGNAME "/shadow/update";
+const char MQTT_PUB_TOPIC[] = "algaepond/monitoring";//"$aws/things/" THINGNAME "/shadow/update";
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
