@@ -302,8 +302,8 @@ void sendDataSensor() {
   if(inputText[0]=="wl") water_lv = inputText[1];
   //if(inputText[0]=="time_now") 
   // Serial2.println("23:59");
-  //message += Ph + "," + mpx + "," + water_flow + "," + lux + "," + pzem + "," + suhu_air + "," + turbidity + "," + water_lv;
-  message = message + " ,ph";
+  String formattedDate = String(timeClient.getFullFormattedTime());
+  message += Ph + "," + mpx + "," + water_flow + "," + lux + "," + pzem + "," + suhu_air + "," + turbidity + "," + water_lv + "," + formattedDate;
   if (!client.publish(MQTT_PUB_TOPIC, message.c_str(), false)) //contoh data yg terkirim (100, 2019-10-30 00:00:00)
     pubSubErr(client.state());
 
