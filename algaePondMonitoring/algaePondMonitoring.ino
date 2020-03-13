@@ -63,7 +63,7 @@ WiFiClientSecure net;
 
 #ifdef ESP8266
 
-   //timeClient.begin();
+// timeClient.begin();
 
 BearSSL::X509List cert(cacert);
 BearSSL::X509List client_crt(client_cert);
@@ -262,6 +262,9 @@ void setup() {
 }
 
 void sendDataSensor() {
+  now = time(nullptr);
+  timeClient.update();
+  
   String S1 = "";
   String S2 = "";
   String S3 = "";
@@ -303,6 +306,7 @@ void sendDataSensor() {
   //if(inputText[0]=="time_now") 
   // Serial2.println("23:59");
   String formattedDate = String(timeClient.getFullFormattedTime());
+  // parameter yang akan dipublish
   message += Ph + "," + mpx + "," + water_flow + "," + lux + "," + pzem + "," + suhu_air + "," + turbidity + "," + water_lv + "," + formattedDate;
   // publish data ke broker AWS
   if (!client.publish(MQTT_PUB_TOPIC, message.c_str(), false)) //contoh data yg terkirim (100, 2019-10-30 00:00:00)
@@ -388,8 +392,13 @@ void loop(){
   else
   {
     client.loop();
-      // while(s.available())
+    // jeda waktu untuk mengirim data
+    if (millis() - lastMillis > 60000)
+    {
       sendDataSensor();
-      delay(10000);
+      //delay(10000);
+      lastMillis = millis();
+    }
+       
   }
   }
