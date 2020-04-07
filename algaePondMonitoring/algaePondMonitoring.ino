@@ -392,7 +392,6 @@ void loop(){
   else
   {
     client.loop();
-    // jeda waktu untuk mengirim data
     if (millis() - lastMillis > 60000)
     {
       sendDataSensor();
