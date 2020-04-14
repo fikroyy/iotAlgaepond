@@ -187,7 +187,8 @@ void checkWiFiThenReboot(void)
 }
 
 String inputText[2];
-
+// Because corona fucking come, so i will change value any sensor with random based on min and max
+// String turbidity   = random(1,2);
 //mesi
 String turbidity   = "0";
 String timestamp   = "0";
