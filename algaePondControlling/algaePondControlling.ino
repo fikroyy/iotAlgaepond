@@ -6,18 +6,22 @@
 #else
 #error Platform not supported
 #endif
+#include <ArduinoJson.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <DNSServer.h>
 //#include <WiFiManager.h>
-#include <EEPROM.h>
 #include <FS.h>
-//#include <SD.h>
-#include <SPI.h>
+#include <SD.h>
+//#include <SPI.h>
 #include <LiquidCrystal_I2C.h>
 
+#if !(ARDUINOJSON_VERSION_MAJOR == 6 and ARDUINOJSON_VERSION_MINOR >= 7)
+#error "Install ArduinoJson v6.7.0-beta or higher"
+#endif
+ 
 // Define port sensor dan relay
 #define BUZZ 13   //active high
 #define BUTT 12   //active low
@@ -40,6 +44,8 @@
 #define RXD 16
 #define TXD 17
 
+
+  
 LiquidCrystal_I2C  lcd(0x27,4,20);
 
 #include "secrets.h" // ada cert
@@ -48,6 +54,9 @@ const long utcOffsetInSeconds = 25200; //WIB +07.00
 const int MQTT_PORT = 8883;
 // AWS IoT Core Topic
 const char MQTT_SUB_TOPIC[] = "algaepond/monitoring";//"$aws/things/" THINGNAME "/shadow/update";
+const char MQTT_SUB_TOPIC2[] = "algaepond/valvePanen_controlling";
+const char MQTT_SUB_TOPIC3[] = "algaepond/servoNutrisi_controlling";
+const char MQTT_SUB_TOPIC4[] = "algaepond/stepperPipaAir_controlling";
 const char MQTT_PUB_TOPIC[] = "algaepond/monitoring";//"$aws/things/" THINGNAME "/shadow/update";
 
 WiFiUDP ntpUDP;
@@ -186,22 +195,145 @@ void checkWiFiThenReboot(void)
   ESP.restart();
 }
 
-String inputText[2];
+// Program buat kontrolling
+String stateRelay = "on";
+String stateNow = "on";
+String saveMode;
+const int pinRelay = 0;
+const char* control_mode;
+const char* control_manual;
+const char* control_auto;
+String manual = "off";
 
+void messageReceived(char *topic, byte *payload, unsigned int length){
+  if(strcmp(topic, MQTT_SUB_TOPIC2) == 0){
+    Serial.print("Received [");
+    Serial.print(topic);
+    String stateRelay = "";
+    Serial.print("]: ");
+    for(int i = 0; i< length; i++){
+      Serial.print((char)payload[i]);
+      stateRelay += (char)payload[i];
+      }
+      const size_t capacity = JSON_OBJECT_SIZE(3) + 100;
+      DynamicJsonDocument doc(capacity);
+      deserializeJson(doc, stateRelay);
+      control_mode = doc["mode"];
+      control_manual = doc["manual"];
+      control_auto = doc["auto"];
+      Serial.println();
+      saveMode = String(control_mode);
+    }
+  if(strcmp(topic, MQTT_SUB_TOPIC3) == 0){
+    Serial.print("Received [");
+    Serial.print(topic);
+    String stateRelay = "";
+    Serial.print("]: ");
+    for(int i = 0; i< length; i++){
+      Serial.print((char)payload[i]);
+      stateRelay += (char)payload[i];
+      }
+      const size_t capacity = JSON_OBJECT_SIZE(3) + 100;
+      DynamicJsonDocument doc(capacity);
+      deserializeJson(doc, stateRelay);
+      control_mode = doc["mode"];
+      control_manual = doc["manual"];
+      control_auto = doc["auto"];
+      Serial.println();
+      saveMode = String(control_mode);
+    }
+  if(strcmp(topic, MQTT_SUB_TOPIC4) == 0){
+    Serial.print("Received [");
+    Serial.print(topic);
+    String stateRelay = "";
+    Serial.print("]: ");
+    for(int i = 0; i< length; i++){
+      Serial.print((char)payload[i]);
+      stateRelay += (char)payload[i];
+      }
+      const size_t capacity = JSON_OBJECT_SIZE(3) + 100;
+      DynamicJsonDocument doc(capacity);
+      deserializeJson(doc, stateRelay);
+      control_mode = doc["mode"];
+      control_manual = doc["manual"];
+      control_auto = doc["auto"];
+      Serial.println();
+      saveMode = String(control_mode);
+    }
+    else Serial.println("topik tidak ada");
+
+    if (saveMode == "auto"){
+      RelayControlAuto();
+      Serial.print("Auto");
+      }
+    else if (saveMode == "manual"){
+      RelayControlManual();
+      Serial.print("Manual");
+      } 
+    else Serial.println("mode tidak ada");
+  }
+
+// fungsi untuk mengirimkan data ke broker bahwa mode telah diubah
+void sendData(void)
+{
+  String stateRelayNow = "";
+  stateRelayNow = String(digitalRead(pinRelay));
+  DynamicJsonDocument jsonBuffer(JSON_OBJECT_SIZE(3) + 100);
+  JsonObject root = jsonBuffer.to<JsonObject>();
+  JsonObject state = root.createNestedObject("state");
+  JsonObject state_reported = state.createNestedObject("reported");
+  state_reported["stateRelayDevice"] = stateRelayNow;
+  Serial.printf("Sending  [%s]: ", MQTT_PUB_TOPIC);
+  serializeJson(root, Serial);
+  Serial.println();
+  char shadow[measureJson(root) + 1];
+  serializeJson(root, shadow, sizeof(shadow));
+  if (!client.publish(MQTT_PUB_TOPIC, shadow, false))
+    pubSubErr(client.state());
+}
+
+// fungsi kontrol manual
+void RelayControlManual() {
+  if (strcmp(control_manual, "on") == 0) {
+    digitalWrite(pinRelay, LOW);
+    stateNow = "on";
+    if (stateNow != stateRelay) {
+      stateRelay = stateNow;
+      Serial.println(stateRelay);
+      sendData();
+      Serial.println("Relay on");
+    }
+  }
+
+  else if (strcmp(control_manual, "off") == 0) {
+    digitalWrite(pinRelay, HIGH);
+    stateNow = "off";
+    if (stateNow != stateRelay) {
+      stateRelay = stateNow;
+      sendData();
+      Serial.println("Relay off");
+    }
+  }
+
+
+  else Serial.println(stateRelay);
+}
+
+
+String inputText[2];
 //mesi
-String turbidity   = "0";
-String timestamp   = "0";
-String water_lv    = "0";
+String turbidity   = random(1,2);
+String water_lv    = random(1,2);
 
 //ilham
-String Ph          = "0";
-String mpx         = "0";
-String water_flow  = "0";
+String Ph          = random(1,2);
+String mpx         = random(1,2);
+String water_flow  = random(1,2);
 
 //faiq
-String lux         = "0";
-String pzem        = "0";
-String suhu_air    = "0";
+String lux         = random(1,2);
+String pzem        = random(1,2);
+String suhu_air    = random(1,2);
 
 void setup() {
   Serial.begin(9600);
@@ -226,9 +358,6 @@ void setup() {
   //      lcd.print("Card Mount Failed!");
     //    return;
     //}
-
-//  konek1.begin(115200, SWSERIAL_8N1, 4, 2, true, 256);
-//  konek1.begin(115200);
 
   //writeFile(SD, "/hello.txt", "");
   
@@ -288,23 +417,18 @@ void sendDataSensor() {
   if(inputText[0]=="ph")  Ph = inputText[1];
   if(inputText[0]=="mpx") mpx = inputText[1];
   if(inputText[0]=="wfl") water_flow = inputText[1];
-  //if(inputText[0]=="ph_min") 
-  // Serial.println("6.85");
 
   // data faiq
   stringToArray(inputText,' ',S2);
   if(inputText[0]=="lux") lux = inputText[1];
   if(inputText[0]=="va") pzem = inputText[1];
   if(inputText[0]=="tmp") suhu_air = inputText[1];
-  //if(inputText[0]=="wf_min") 
-  // Serial1.println("7.00");
 
   // data mesi
   stringToArray(inputText,' ',S3);
   if(inputText[0]=="tb") turbidity = inputText[1];
   if(inputText[0]=="wl") water_lv = inputText[1];
-  //if(inputText[0]=="time_now") 
-  // Serial2.println("23:59");
+  
   String formattedDate = String(timeClient.getFullFormattedTime());
   // parameter yang akan dipublish
   message += Ph + "," + mpx + "," + water_flow + "," + lux + "," + pzem + "," + suhu_air + "," + turbidity + "," + water_lv + "," + formattedDate;
@@ -330,11 +454,6 @@ void sendDataSensor() {
   //appendFile(SD, "/hey.txt", "World!\n");
 }
 
-void clearRow(int x)
-{ lcd.setCursor(0,x);
-  lcd.print("");
-}
-
 void stringToArray(String hasil[], char delimiter, String input)
 { 
   int index = 0;
@@ -346,39 +465,6 @@ void stringToArray(String hasil[], char delimiter, String input)
   }
   hasil[index] = input;
 }
-
-void writeFile(fs::FS &fs, const char * path, const char * message){
-    Serial.printf("Writing file: %s\n", path);
-
-    File file = fs.open(path, FILE_WRITE);
-    if(!file){
-        Serial.println("Failed to open file for writing");
-        return;
-    }
-    if(file.print(message)){
-        Serial.println("File written");
-    } else {
-        Serial.println("Write failed");
-    }
-    file.close();
-}
-
-void appendFile(fs::FS &fs, const char * path, const char * message){
-    Serial.printf("Appending to file: %s\n", path);
-
-    File file = fs.open(path, FILE_APPEND);
-    if(!file){
-        Serial.println("Failed to open file for appending");
-        return;
-    }
-    if(file.print(message)){
-        Serial.println("Message appended");
-    } else {
-        Serial.println("Append failed");
-    }
-    file.close();
-}
-
 
 void loop(){
   now = time(nullptr);
