@@ -12,9 +12,8 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <DNSServer.h>
-//#include <WiFiManager.h>
-#include <FS.h>
-#include <SD.h>
+//#include <FS.h>
+//#include <SD.h>
 //#include <SPI.h>
 #include <LiquidCrystal_I2C.h>
 
@@ -53,11 +52,12 @@ char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursd
 const long utcOffsetInSeconds = 25200; //WIB +07.00
 const int MQTT_PORT = 8883;
 // AWS IoT Core Topic
-const char MQTT_SUB_TOPIC[] = "algaepond/monitoring";//"$aws/things/" THINGNAME "/shadow/update";
-const char MQTT_SUB_TOPIC2[] = "algaepond/valvePanen_controlling";
-const char MQTT_SUB_TOPIC3[] = "algaepond/servoNutrisi_controlling";
-const char MQTT_SUB_TOPIC4[] = "algaepond/stepperPipaAir_controlling";
-const char MQTT_PUB_TOPIC[] = "algaepond/monitoring";//"$aws/things/" THINGNAME "/shadow/update";
+#define kolamId "1"
+const char MQTT_SUB_TOPIC[] = "algaepond/" kolamId "/monitoring";//"$aws/things/" THINGNAME "/shadow/update";
+const char MQTT_SUB_TOPIC2[] = "algaepond/" kolamId "/valvePanen_controlling";
+const char MQTT_SUB_TOPIC3[] = "algaepond/" kolamId "/servoNutrisi_controlling";
+const char MQTT_SUB_TOPIC4[] = "algaepond/" kolamId "/stepperPipaAir_controlling";
+const char MQTT_PUB_TOPIC[] = "algaepond/" kolamId "/monitoring";//"$aws/things/" THINGNAME "/shadow/update";
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
@@ -314,26 +314,24 @@ void RelayControlManual() {
       Serial.println("Relay off");
     }
   }
-
-
   else Serial.println(stateRelay);
 }
 
 
 String inputText[2];
 //mesi
-String turbidity   = random(1,2);
-String water_lv    = random(1,2);
+String turbidity   = random(1000,3000);
+String water_lv    = random(10,14);
 
 //ilham
-String Ph          = random(1,2);
-String mpx         = random(1,2);
-String water_flow  = random(1,2);
+String Ph          = random(7.5,9.5);
+String mpx         = random(3.33,25);
+String water_flow  = random(16,32);
 
 //faiq
-String lux         = random(1,2);
+String lux         = random(5000,30000);
 String pzem        = random(1,2);
-String suhu_air    = random(1,2);
+String suhu_air    = random(25,35);
 
 void setup() {
   Serial.begin(9600);
