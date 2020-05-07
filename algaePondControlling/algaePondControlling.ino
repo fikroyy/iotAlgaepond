@@ -10,11 +10,10 @@
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <NTPClient.h>
+#include <SoftwareSerial.h>
 #include <WiFiUdp.h>
 #include <DNSServer.h>
-//#include <FS.h>
-//#include <SD.h>
-//#include <SPI.h>
+#include <SPI.h>
 #include <LiquidCrystal_I2C.h>
 
 #if !(ARDUINOJSON_VERSION_MAJOR == 6 and ARDUINOJSON_VERSION_MINOR >= 7)
@@ -37,12 +36,11 @@
 #define IRPIN 27
 
 // RELAY
-#define RELAY 26
+#define RELAY 13
 
 // Serial UART for GSM
 #define RXD 16
 #define TXD 17
-
 
   
 LiquidCrystal_I2C  lcd(0x27,4,20);
@@ -51,13 +49,15 @@ LiquidCrystal_I2C  lcd(0x27,4,20);
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 const long utcOffsetInSeconds = 25200; //WIB +07.00
 const int MQTT_PORT = 8883;
+
 // AWS IoT Core Topic
 #define kolamId "1"
 const char MQTT_SUB_TOPIC[] = "algaepond/" kolamId "/monitoring";//"$aws/things/" THINGNAME "/shadow/update";
-const char MQTT_SUB_TOPIC2[] = "algaepond/" kolamId "/valvePanen_controlling";
-const char MQTT_SUB_TOPIC3[] = "algaepond/" kolamId "/servoNutrisi_controlling";
-const char MQTT_SUB_TOPIC4[] = "algaepond/" kolamId "/stepperPipaAir_controlling";
+const char MQTT_SUB_TOPIC2[] = "algaepond/" kolamId "/relay_controlling";
+//const char MQTT_SUB_TOPIC3[] = "algaepond/" kolamId "/servoNutrisi_controlling";
+//const char MQTT_SUB_TOPIC4[] = "algaepond/" kolamId "/stepperPipaAir_controlling";
 const char MQTT_PUB_TOPIC[] = "algaepond/" kolamId "/monitoring";//"$aws/things/" THINGNAME "/shadow/update";
+const char MQTT_PUB2_TOPIC[] = "algaepond/" kolamId "/relay_controlling";
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
@@ -195,16 +195,16 @@ void checkWiFiThenReboot(void)
   ESP.restart();
 }
 
-// Program buat kontrolling
-String stateRelay = "on";
-String stateNow = "on";
+//// Program buat kontrolling
+String stateRelay = "panen:1";
+String stateNow = "panen:1";
 String saveMode;
 const int pinRelay = 0;
 const char* control_mode;
 const char* control_manual;
-const char* control_auto;
 String manual = "off";
 
+// fungsi buat nerima masukan
 void messageReceived(char *topic, byte *payload, unsigned int length){
   if(strcmp(topic, MQTT_SUB_TOPIC2) == 0){
     Serial.print("Received [");
@@ -220,53 +220,10 @@ void messageReceived(char *topic, byte *payload, unsigned int length){
       deserializeJson(doc, stateRelay);
       control_mode = doc["mode"];
       control_manual = doc["manual"];
-      control_auto = doc["auto"];
       Serial.println();
       saveMode = String(control_mode);
     }
-  if(strcmp(topic, MQTT_SUB_TOPIC3) == 0){
-    Serial.print("Received [");
-    Serial.print(topic);
-    String stateRelay = "";
-    Serial.print("]: ");
-    for(int i = 0; i< length; i++){
-      Serial.print((char)payload[i]);
-      stateRelay += (char)payload[i];
-      }
-      const size_t capacity = JSON_OBJECT_SIZE(3) + 100;
-      DynamicJsonDocument doc(capacity);
-      deserializeJson(doc, stateRelay);
-      control_mode = doc["mode"];
-      control_manual = doc["manual"];
-      control_auto = doc["auto"];
-      Serial.println();
-      saveMode = String(control_mode);
-    }
-  if(strcmp(topic, MQTT_SUB_TOPIC4) == 0){
-    Serial.print("Received [");
-    Serial.print(topic);
-    String stateRelay = "";
-    Serial.print("]: ");
-    for(int i = 0; i< length; i++){
-      Serial.print((char)payload[i]);
-      stateRelay += (char)payload[i];
-      }
-      const size_t capacity = JSON_OBJECT_SIZE(3) + 100;
-      DynamicJsonDocument doc(capacity);
-      deserializeJson(doc, stateRelay);
-      control_mode = doc["mode"];
-      control_manual = doc["manual"];
-      control_auto = doc["auto"];
-      Serial.println();
-      saveMode = String(control_mode);
-    }
-    else Serial.println("topik tidak ada");
-
-    if (saveMode == "auto"){
-      RelayControlAuto();
-      Serial.print("Auto");
-      }
-    else if (saveMode == "manual"){
+    if (saveMode == "manual"){
       RelayControlManual();
       Serial.print("Manual");
       } 
@@ -283,18 +240,18 @@ void sendData(void)
   JsonObject state = root.createNestedObject("state");
   JsonObject state_reported = state.createNestedObject("reported");
   state_reported["stateRelayDevice"] = stateRelayNow;
-  Serial.printf("Sending  [%s]: ", MQTT_PUB_TOPIC);
+  Serial.printf("Sending  [%s]: ", MQTT_PUB2_TOPIC);
   serializeJson(root, Serial);
   Serial.println();
   char shadow[measureJson(root) + 1];
   serializeJson(root, shadow, sizeof(shadow));
-  if (!client.publish(MQTT_PUB_TOPIC, shadow, false))
+  if (!client.publish(MQTT_PUB2_TOPIC, shadow, false))
     pubSubErr(client.state());
 }
 
 // fungsi kontrol manual
 void RelayControlManual() {
-  if (strcmp(control_manual, "on") == 0) {
+  if (strcmp(control_manual, "panen:1") == 0) {
     digitalWrite(pinRelay, LOW);
     stateNow = "on";
     if (stateNow != stateRelay) {
@@ -305,7 +262,7 @@ void RelayControlManual() {
     }
   }
 
-  else if (strcmp(control_manual, "off") == 0) {
+  else if (strcmp(control_manual, "panen:0") == 0) {
     digitalWrite(pinRelay, HIGH);
     stateNow = "off";
     if (stateNow != stateRelay) {
@@ -317,21 +274,11 @@ void RelayControlManual() {
   else Serial.println(stateRelay);
 }
 
-
 String inputText[2];
-//mesi
-String turbidity   = random(1000,3000);
-String water_lv    = random(10,14);
-
-//ilham
-String Ph          = random(7.5,9.5);
-String mpx         = random(3.33,25);
-String water_flow  = random(16,32);
-
-//faiq
-String lux         = random(5000,30000);
-String pzem        = random(1,2);
-String suhu_air    = random(25,35);
+ 
+SoftwareSerial serial(7, 6); // RX: 10, TX:11
+SoftwareSerial serial1(13, 15);
+SoftwareSerial serial2(16, 17);
 
 void setup() {
   Serial.begin(9600);
@@ -352,13 +299,6 @@ void setup() {
   delay(5000);
   lcd.clear();
 
-//  if(!SD.begin()){
-  //      lcd.print("Card Mount Failed!");
-    //    return;
-    //}
-
-  //writeFile(SD, "/hello.txt", "");
-  
   //WiFiManager wifiManager;
   //wifiManager.autoConnect(THINGNAME);
   //reset saved settings
@@ -384,13 +324,31 @@ void setup() {
   client.setServer(MQTT_HOST, MQTT_PORT);
 
   connectToMqtt();
-
+  pinMode(pinRelay, OUTPUT);
   while (!Serial) continue;
 }
 
 void sendDataSensor() {
   now = time(nullptr);
   timeClient.update();
+  // because fcking corona, data from sensor is dummy
+  srand(time(NULL));
+  float keruh = random(1000,3000);
+  String kekeruhan = String(keruh);
+  float ketinggian = random(10,14);
+  String ketinggian_air = String(ketinggian);
+  float ph = random(7.5,9.5);
+  String ph_air = String(ph);
+  float tekanan = random(3.33,25);
+  String tekanan_udara = String(tekanan);
+  float aliran = random(16,32);
+  String aliran_air = String(aliran);
+  float intensitas = random(5000,30000);
+  String intensitas_cahaya = String(intensitas);
+  float daya = random(3,8);
+  String daya_listrik = String(daya);
+  float suhu = random(25,35);
+  String suhu_air = String(suhu);
   
   String S1 = "";
   String S2 = "";
@@ -410,46 +368,56 @@ void sendDataSensor() {
     if(c!=13 && c!=10) S3 += String(c);
     }
   String message = "";
+  
   // data ilham
   stringToArray(inputText,' ',S1);
-  if(inputText[0]=="ph")  Ph = inputText[1];
-  if(inputText[0]=="mpx") mpx = inputText[1];
-  if(inputText[0]=="wfl") water_flow = inputText[1];
+  if(inputText[0]=="ph")  ph_air = inputText[1];
+  if(inputText[0]=="mpx") tekanan_udara = inputText[1];
+  if(inputText[0]=="wfl") aliran_air = inputText[1];
 
   // data faiq
   stringToArray(inputText,' ',S2);
-  if(inputText[0]=="lux") lux = inputText[1];
-  if(inputText[0]=="va") pzem = inputText[1];
+  if(inputText[0]=="lux") intensitas_cahaya = inputText[1];
+  if(inputText[0]=="va") daya_listrik = inputText[1];
   if(inputText[0]=="tmp") suhu_air = inputText[1];
 
   // data mesi
   stringToArray(inputText,' ',S3);
-  if(inputText[0]=="tb") turbidity = inputText[1];
-  if(inputText[0]=="wl") water_lv = inputText[1];
+  if(inputText[0]=="tb") kekeruhan = inputText[1];
+  if(inputText[0]=="wl") ketinggian_air = inputText[1];
   
   String formattedDate = String(timeClient.getFullFormattedTime());
+  
   // parameter yang akan dipublish
-  message += Ph + "," + mpx + "," + water_flow + "," + lux + "," + pzem + "," + suhu_air + "," + turbidity + "," + water_lv + "," + formattedDate;
+  message += ph_air + "," + tekanan_udara + "," + aliran_air + "," + 
+             intensitas_cahaya + "," + daya_listrik + "," + suhu_air + "," + 
+             kekeruhan + "," + ketinggian_air + "," + formattedDate;
   // publish data ke broker AWS
-  if (!client.publish(MQTT_PUB_TOPIC, message.c_str(), false)) //contoh data yg terkirim (100, 2019-10-30 00:00:00)
+  if (!client.publish(MQTT_PUB_TOPIC, message.c_str(), false))
+    //contoh data yg terkirim (100, 2019-10-30 00:00:00)
     pubSubErr(client.state());
 
+  // menampilkan data ke LCD
   lcd.setCursor(0,0);
-  lcd.print("PH: "+Ph+"  Lux:"+lux);
+  lcd.print("PH: "+ph_air+"  Lux:"+intensitas_cahaya);
   // lcd.print(String(S3));
   lcd.setCursor(0,1);
-  lcd.print("Tb: "+turbidity+"  Wlv:"+water_lv);
+  lcd.print("Tb: "+kekeruhan+"  Wlv:"+ketinggian_air);
   // lcd.print(String(S2));
   lcd.setCursor(0,2);
-  lcd.print("VA: "+pzem+"  Tmp:"+suhu_air);
+  lcd.print("VA: "+daya_listrik+"  Tmp:"+suhu_air);
   // lcd.print(String(S1));
   lcd.setCursor(0,3);
-  lcd.print("Fl: "+water_flow+"  Mpx:"+mpx);
+  lcd.print("Fl: "+aliran_air+"  Mpx:"+tekanan_udara);
 
   delay(500);
   lcd.clear();
   
-  //appendFile(SD, "/hey.txt", "World!\n");
+}
+
+void clearRow(int x)
+{ lcd.setCursor(0,x);
+  lcd.print("                    ");
 }
 
 void stringToArray(String hasil[], char delimiter, String input)
@@ -476,10 +444,10 @@ void loop(){
   else
   {
     client.loop();
-    if (millis() - lastMillis > 60000)
+    // delay publish data
+    if (millis() - lastMillis > 30000)
     {
       sendDataSensor();
-      //delay(10000);
       lastMillis = millis();
     }
        
