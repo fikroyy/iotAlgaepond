@@ -41,6 +41,9 @@
 #define RELAY 15
 #define RELAY 15
 #define RELAY 15
+#define RELAY 15
+#define RELAY 15
+#define RELAY 15
 
 // Serial UART for GSM
 #define RXD 16
