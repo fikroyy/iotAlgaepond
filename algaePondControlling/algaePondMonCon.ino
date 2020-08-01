@@ -43,7 +43,7 @@
 #define RXD 16
 #define TXD 17
 
-  
+// Liquid cristal  
 LiquidCrystal_I2C  lcd(0x27,4,20);
 
 #include "secrets.h" // ada cert
